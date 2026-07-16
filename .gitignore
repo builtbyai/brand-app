@@ -25,3 +25,5 @@ infra/.seed-content.sql
 *.log
 .DS_Store
 *.local
+
+.claude/
