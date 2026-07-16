@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.wrangler/
+.vinext/
+.turbo/
+coverage/
+
+# Env / secrets — never commit real values
+.env
+.env.*
+!.env.example
+.dev.vars
+*.pem
+*.key
+*secret*
+
+# Generated seed (regenerate with: node infra/seed-content.mjs)
+infra/.seed-content.sql
+
+# Logs / misc
+*.log
+.DS_Store
+*.local

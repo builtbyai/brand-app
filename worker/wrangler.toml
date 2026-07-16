@@ -1,0 +1,109 @@
+name = "brand-os-api"
+main = "src/index.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+# Expose a stable .workers.dev URL so the ingest CLI works before brain.* DNS is live.
+workers_dev = true
+
+# Same-origin /api/* on the app hostname removes CORS surface entirely.
+# Two custom domains share the same cookie zone (.example.com)
+# so a single session works on both. os.example.com lives on a different
+# zone and is implemented as a 301 redirect — see plan §C.8.
+routes = [
+  { pattern = "app.example.com/api/*", zone_name = "example.com" },
+  { pattern = "cmd.example.com/api/*",   zone_name = "example.com" },
+]
+
+[observability]
+enabled = true
+
+# --- D1 ---
+[[d1_databases]]
+binding = "DB"
+database_name = "brand-os-prod"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "../infra/migrations"
+
+# --- R2 ---
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "brand-os-media"
+
+# --- Queue (publish jobs) ---
+[[queues.producers]]
+binding = "PUBLISH_QUEUE"
+queue = "brand-os-publish"
+
+[[queues.consumers]]
+queue = "brand-os-publish"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "brand-os-publish-dlq"
+
+# --- Durable Object: per-user live status fan-out (SSE) ---
+[[durable_objects.bindings]]
+name = "SCHEDULE_ROOM"
+class_name = "ScheduleRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ScheduleRoom"]
+
+# --- Workers AI (Node 14 quality review, safety classification, brand-OS embeddings) ---
+[ai]
+binding = "AI"
+
+# --- Vectorize indexes (Nodes 02, 18, 25 + brand-OS sections) ---
+[[vectorize]]
+binding = "VEC_BRANDS"
+index_name = "brand-os-brands"
+
+[[vectorize]]
+binding = "VEC_COMPETITORS"
+index_name = "brand-os-competitors"
+
+[[vectorize]]
+binding = "VEC_LEADS"
+index_name = "brand-os-leads"
+
+[[vectorize]]
+binding = "VEC_BRAND_OS"
+index_name = "brand-os-sections"
+
+# --- KV (lightweight cache for provider capabilities, brief presets, media meta) ---
+[[kv_namespaces]]
+binding = "CACHE"
+id = "0000000000000000000000000000abcd"
+
+# --- Cron: reconcile near-term scheduled posts every minute ---
+[triggers]
+crons = ["* * * * *"]
+
+# --- Vars (non-secret config) ---
+[vars]
+AI_GATEWAY_SLUG = "brand-os-ai"
+# Postiz reused as-is from the Brand OS side (social.example.com on a self-hosted host).
+POSTIZ_API_BASE = "https://social.example.com/api"
+POSTIZ_PUBLIC_BASE = "https://social.example.com"
+APP_ORIGIN = "https://app.example.com"
+R2_PUBLIC_BASE = "https://app.example.com/api/r2"
+R2_ACCOUNT_ID = "0000000000000000000000000000cf00"
+R2_BUCKET = "brand-os-media"
+GEMINI_MODEL = "gemini-2.5-flash"
+SESSION_TTL_HOURS = "168"
+# Cookie domain stays on the .example.com zone so brain + cmd share auth.
+SESSION_COOKIE_DOMAIN = ".example.com"
+
+# Secrets (set via `wrangler secret put`):
+#   GEMINI_API_KEY
+#   POSTIZ_API_KEY
+#   POSTIZ_WEBHOOK_SECRET
+#   R2_ACCESS_KEY_ID
+#   R2_SECRET_ACCESS_KEY
+#   CF_ACCESS_CLIENT_ID         (for service-token auth to Postiz tunnel)
+#   CF_ACCESS_CLIENT_SECRET
+#   SESSION_COOKIE_SECRET       (HMAC sign session ids)
+#   REPLICATE_API_TOKEN         (Replicate.com — video generation in Video Lab + Node 09)
+#   REPLICATE_WEBHOOK_SECRET    (optional — verifies async webhook callbacks)
+#   OLLAMA_BRIDGE_SECRET      (auth bearer for the self-hosted Ollama bridge; optional)
